@@ -1,12 +1,12 @@
-78fbf25c9259a712e6e59b2bf685daf2 *DESCRIPTION
+8a832025549ef950d86e4538477661ef *DESCRIPTION
 696b87df1d9045c04a646278f673b451 *LICENSE
 9ed5440594c35e1bc0360d17663322c8 *NAMESPACE
 b96f8213e132430f13b5f205d68db111 *R/getxpvorth.R
 754c757352b96f187b75bec811444a90 *R/pcv.R
-aa1d3ea55386b8d6fedc066e7d837240 *R/pcvcrossval.R
+6125e6f9b6be382c457c904aa9875078 *R/pcvcrossval.R
 5d06c65e03e896c9bf15a64696c14c3b *R/pcvpca.R
 5bd88ccd3ac58eacd629661ad30f15f7 *R/pcvpcr.R
-cfc1d534c5a6783d0c5638b1edf76f79 *R/pcvpls.R
+69b2cbe4b8f2ada247a5e7ae9d51be54 *R/pcvpls.R
 39f7c665793c8011444716ae5e11ef1a *R/pcvreg.R
 ac3d3fe5419dc09fba5407fd4c7bf3ea *R/plotD.R
 fc4cff28fb685dec5c9a49fe26820bbe *data/corn.RData
@@ -25,4 +25,4 @@ f7ab222cd5318f7d6a7bf4a6c8160bf8 *man/plotD.Rd
 682f7c803d366d901e6ae6be1216d466 *man/rotationMatrixToX1.Rd
 0c92f11d20a5f0e2e59317eb5b2551b9 *man/simpls.Rd
 d41f95b996d4da1aa7531c2f2aaea232 *tests/testthat.R
-ccd94ebf3fddab83a7616f435e161f61 *tests/testthat/test.R
+726ae41d4888db5b806ca3278837a139 *tests/testthat/test.R
