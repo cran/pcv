@@ -10,10 +10,13 @@
 #' logical, to scale or not the data sets
 #' @param cv
 #' which split method to use for cross-validation (see description for details).
+#' @param cv.scope
+#' scope for center/scale operations inside CV loop: 'global' — using globally computed mean and std
+#' or 'local' — recompute new for each local calibration set.
 #'
 #' @details
-#' The method computes pseudo-validation matrix Xpv, based on PCA decomposition of calibration
-#' set `X` and cross-validation. See description of the method in [1].
+#' The method computes Procrustes validation set (PV-set), matrix Xpv, based on PCA decomposition
+#' of calibration set `X` and cross-validation. See description of the method in [1].
 #'
 #' Parameter `cv` defines how to split the rows of the training set. The split is similar
 #' to cross-validation splits, as PCV is based on cross-validation. This parameter can have
@@ -34,12 +37,19 @@
 #' is assumed that you have 9 rows in the calibration set, which will be split into 3 segments.
 #' The first segment will consist of measurements from rows 1, 4 and 7.
 #'
+#' Parameter `cv.scope` influences how the Procrustean rule is met. In case of "global" scope,
+#' the rule will be met strictly - distances for PV-set and the global model will be
+#' identical to the distances from conventional cross-validation. In case of "local" scope, every
+#' local model will have its own center and scaling factor and hence the rule will be almost
+#' met (the distances will be close but not identical).
+#'
 #' @return
 #' Matrix with PV-set (same size as X)
 #'
 #' @references
 #' 1. S. Kucheryavskiy, O. Rodionova, A. Pomerantsev. Procrustes cross-validation of multivariate
-#' regression models. Submitted, 2022.
+#' regression models. Analytica Chimica Acta, 1255 (2022)
+#' [https://doi.org/10.1016/j.aca.2023.341096]
 #'
 #' @examples
 #'
@@ -61,16 +71,15 @@
 #' @importFrom stats sd
 #'
 #' @export
-pcvpca <- function(X, ncomp = min(nrow(X) - 1, col(X), 30), cv = list("ven", 4),
-   center = TRUE, scale = FALSE) {
+pcvpca <- function(X, ncomp = min(nrow(X) - 1, ncol(X), 30), cv = list("ven", 4),
+   center = TRUE, scale = FALSE, cv.scope = "global") {
 
    # keep names if any
    attrs <- attributes(X)
 
-   mX <- apply(X, 2, mean)
+   # compute global mean and standard deviation and autoscale the whole data
+   mX <- if (center) apply(X, 2, mean) else rep(0, ncol(X))
    sX <- if (scale) apply(X, 2, sd) else rep(1, ncol(X))
-
-   # autoscale the calibration set
    X <- scale(X, center = mX, scale = sX)
 
    # indices for cross-validation
@@ -86,8 +95,11 @@ pcvpca <- function(X, ncomp = min(nrow(X) - 1, col(X), 30), cv = list("ven", 4),
    }
 
    # create a global model
-   P <- svd(X)$v[, seq_len(ncomp), drop = FALSE]
-   Pi <- diag(1, nrow(P)) - tcrossprod(P)
+   m <- svd(X, nv = ncomp, nu = ncomp)
+   s <- m$d[seq_len(ncomp)]
+   P <- m$v
+   PPT <- tcrossprod(P)
+   Pi <- diag(1, nrow(P)) - PPT
 
    # prepare empty matrix for pseudo-validation set
    Xpv <- matrix(0, nrow(X), ncol(X))
@@ -99,11 +111,20 @@ pcvpca <- function(X, ncomp = min(nrow(X) - 1, col(X), 30), cv = list("ven", 4),
       ind.c <- ind != k
       ind.k <- ind == k
 
-      X.c <- X[ ind.c, , drop = FALSE]
-      X.k <- X[ ind.k, , drop = FALSE]
+      X.c <- X[ind.c, , drop = FALSE]
+      X.k <- X[ind.k, , drop = FALSE]
+
+      # compute mean and standard deviation and autoscale in case of local scope
+      if (cv.scope == "local") {
+         mXl <- if (center) apply(X.c, 2, mean) else rep(0, ncol(X.c))
+         sXl <- if (scale) apply(X.c, 2, sd) else rep(1, ncol(X.c))
+         X.c <- scale(X.c, center = mXl, scale = sXl)
+         X.k <- scale(X.k, center = mXl, scale = sXl)
+      }
 
       # get loadings for local model and rotation matrix between global and local models
-      P.k <- svd(X.c, nv = ncomp)$v[, seq_len(ncomp), drop = FALSE]
+      m.k <- svd(X.c, nv = ncomp, nu = ncomp)
+      P.k <- m.k$v
 
       # correct direction of loadings for local model
       a <- acos(colSums(P * P.k)) < pi / 2
@@ -124,7 +145,7 @@ pcvpca <- function(X, ncomp = min(nrow(X) - 1, col(X), 30), cv = list("ven", 4),
       Xpv[ind.k, ] <- Xpv.hat + Xpv.orth
    }
 
-   # uscenter and unscale the data
+   # uscenter and unscale the data using global mean and std
    Xpv <- sweep(Xpv, 2, sX, "*")
    Xpv <- sweep(Xpv, 2, mX, "+")
 

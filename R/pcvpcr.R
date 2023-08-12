@@ -12,6 +12,9 @@
 #' logical, to scale or not the data sets
 #' @param cv
 #' which split method to use for cross-validation (see description of method `pcvpls()` for details).
+#' @param cv.scope
+#' scope for center/scale operations inside CV loop: 'global' — using globally computed mean and std
+#' or 'local' — recompute new for each local calibration set.
 #'
 #' @details
 #' The method computes pseudo-validation matrix Xpv, based on PCR decomposition of calibration
@@ -36,13 +39,20 @@
 #' is assumed that you have 9 rows in the calibration set, which will be split into 3 segments.
 #' The first segment will consist of measurements from rows 1, 4 and 7.
 #'
+#' Parameter `cv.scope` influences how the Procrustean rule is met. In case of "global" scope,
+#' the rule will be met strictly - error of predictions for PV-set and the global model will be
+#' identical to the error from conventional cross-validation. In case of "local" scope, every
+#' local model will have its own center and hence the rule will be almost met (the errors will
+#' be close but not identical).
+#'
 #' @return
 #' Pseudo-validation matrix (same size as X) with an additional attribute, `D` which contains the
 #' scaling coefficients (ck/c)
 #'
 #' @references
 #' 1. S. Kucheryavskiy, O. Rodionova, A. Pomerantsev. Procrustes cross-validation of multivariate
-#' regression models. Submitted, 2022.
+#' regression models. Analytica Chimica Acta, 1255 (2022)
+#' [https://doi.org/10.1016/j.aca.2023.341096]
 #'
 #' @examples
 #'
@@ -64,13 +74,14 @@
 #'
 #' @export
 pcvpcr <- function(X, Y, ncomp = min(nrow(X) - 1, ncol(X), 30), cv = list("ven", 4),
-   center = TRUE, scale = FALSE) {
+   center = TRUE, scale = FALSE, cv.scope = "global") {
 
    funlist <- list(
 
       # computes global PCR model
       getglobalmodel = function(X, Y, ncomp) {
-         P <- svd(X)$v[, 1:ncomp, drop = FALSE]
+         m <- svd(X, nv = ncomp, nu = ncomp)
+         P <- m$v[, seq_len(ncomp), drop = FALSE]
          T <- X %*% P
          C <- t(solve(crossprod(T)) %*% crossprod(T, Y))
          I <- diag(1, ncol(X))
@@ -80,13 +91,12 @@ pcvpcr <- function(X, Y, ncomp = min(nrow(X) - 1, ncol(X), 30), cv = list("ven",
 
       # computes local PCR model
       getlocalmodel = function(X.c, Y.c, m) {
-         P.k <- svd(X.c)$v[, seq_len(ncomp), drop = FALSE]
+         m.k <- svd(X.c, nu = ncomp, nv = ncomp)
+         P.k <- m.k$v[, seq_len(ncomp), drop = FALSE]
          aa <- acos(colSums(m$P * P.k)) < (pi / 2)
          P.k <- P.k %*% diag(aa * 2 - 1, ncol(P.k), ncol(P.k))
-
          T.c <- X.c %*% P.k
          C.k <- t(solve(crossprod(T.c)) %*% crossprod(T.c, Y.c))
-
          return(list(P = P.k, C = C.k))
       },
 
@@ -117,5 +127,5 @@ pcvpcr <- function(X, Y, ncomp = min(nrow(X) - 1, ncol(X), 30), cv = list("ven",
       }
    )
 
-   return(pcvreg(X, Y, ncomp, cv = cv, center = center, scale = scale, funlist = funlist))
+   return(pcvreg(X, Y, ncomp, cv = cv, center = center, scale = scale, funlist = funlist, cv.scope = cv.scope))
 }

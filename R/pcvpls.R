@@ -12,6 +12,9 @@
 #' logical, to scale or not the data sets
 #' @param cv
 #' which split method to use for cross-validation (see description for details).
+#' @param cv.scope
+#' scope for center/scale operations inside CV loop: 'global' — using globally computed mean and std
+#' or 'local' — recompute new for each local calibration set.
 #'
 #' @details
 #' The method computes pseudo-validation matrix Xpv, based on PLS decomposition of calibration
@@ -36,13 +39,20 @@
 #' is assumed that you have 9 rows in the calibration set, which will be split into 3 segments.
 #' The first segment will consist of measurements from rows 1, 4 and 7.
 #'
+#' Parameter `cv.scope` influences how the Procrustean rule is met. In case of "global" scope,
+#' the rule will be met strictly - error of predictions for PV-set and the global model will be
+#' identical to the error from conventional cross-validation. In case of "local" scope, every
+#' local model will have its own center and hence the rule will be almost met (the errors will
+#' be close but not identical).
+#'
 #' @return
 #' Pseudo-validation matrix (same size as X) with an additional attribute, `D` which contains the
 #' scaling coefficients (ck/c)
 #'
 #' @references
 #' 1. S. Kucheryavskiy, O. Rodionova, A. Pomerantsev. Procrustes cross-validation of multivariate
-#' regression models. Submitted, 2022.
+#' regression models. Analytica Chimica Acta, 1255 (2022)
+#' [https://doi.org/10.1016/j.aca.2023.341096]
 #'
 #' @examples
 #'
@@ -66,7 +76,8 @@
 #' plotD(Xpv)
 #'
 #' @export
-pcvpls <- function(X, Y, ncomp = min(nrow(X) - 1, ncol(X), 30), center = TRUE, scale = FALSE, cv = list("ven", 4)) {
+pcvpls <- function(X, Y, ncomp = min(nrow(X) - 1, ncol(X), 30), center = TRUE, scale = FALSE,
+   cv = list("ven", 4), cv.scope = "global") {
 
    funlist <- list(
 
@@ -77,7 +88,7 @@ pcvpls <- function(X, Y, ncomp = min(nrow(X) - 1, ncol(X), 30), center = TRUE, s
          P <- m$P
          C <- m$C
          R <- m$R
-         
+
          Pi <- (diag(1, ncol(X)) - tcrossprod(R, P))
          return(list(P = P, Pi = Pi, C = C, R = R, ncomp = ncomp))
       },
@@ -119,11 +130,11 @@ pcvpls <- function(X, Y, ncomp = min(nrow(X) - 1, ncol(X), 30), center = TRUE, s
          for (a in seq_len(m$ncomp)) {
             D.k[a, a] <- as.numeric(crossprod(C.k[, a], C[, a])) / as.numeric(crossprod(C[, a]))
          }
-         
+
          T.pv <- T.k %*% D.k
          X.pv <- tcrossprod(T.pv, P)
 
-         return(list(X = X.pv, D = D.k))
+         return(list(X = X.pv, D = D.k, R = R.k))
       },
 
       # computes the vector with orthogonal distances for local model
@@ -133,7 +144,7 @@ pcvpls <- function(X, Y, ncomp = min(nrow(X) - 1, ncol(X), 30), center = TRUE, s
       }
    )
 
-   return(pcvreg(X, Y, ncomp, cv = cv, center = center, scale = scale, funlist = funlist))
+   return(pcvreg(X, Y, ncomp, cv = cv, center = center, scale = scale, funlist = funlist, cv.scope = cv.scope))
 }
 
 
